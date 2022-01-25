@@ -51,7 +51,7 @@ async def app(scope, receive, send):
     )
 
 
-async def start_dummy_server(loop, port):
+async def start_dummy_server(port):
     """Start dummy server."""
     host = "0.0.0.0"
 
