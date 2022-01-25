@@ -2,7 +2,6 @@
 
 import ssl
 from asyncio import StreamReader, StreamWriter, open_connection
-from socket import socket
 from ssl import SSLContext
 from typing import Dict, Optional
 from urllib.parse import ParseResult
@@ -17,7 +16,6 @@ from aiosonic.connectors import TCPConnector
 from aiosonic.exceptions import HttpParsingError
 from aiosonic.http2 import Http2Handler
 from aiosonic.tcp_helpers import keepalive_flags
-from aiosonic.timeout import Timeouts
 from aiosonic.types import ParsedBodyType
 
 
@@ -204,7 +202,7 @@ def _get_http2_ssl_context():
     ctx.set_alpn_protocols(["h2", "http/1.1"])
 
     try:
-        if hasattr(ctx, '_set_npn_protocols'):
+        if hasattr(ctx, "_set_npn_protocols"):
             ctx.set_npn_protocols(["h2", "http/1.1"])
     except NotImplementedError:
         pass

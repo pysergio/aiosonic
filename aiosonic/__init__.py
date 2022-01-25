@@ -34,6 +34,7 @@ from aiosonic.exceptions import (
     RequestTimeout,
     TimeoutException,
 )
+from aiosonic.http_parser import HttpHeaders
 from aiosonic.proxy import Proxy
 from aiosonic.timeout import Timeouts
 
@@ -41,7 +42,6 @@ from aiosonic.timeout import Timeouts
 from aiosonic.types import BodyType, DataType, ParamsType, ParsedBodyType
 from aiosonic.utils import get_debug_logger
 from aiosonic.version import VERSION
-from aiosonic_utils.structures import CaseInsensitiveDict
 
 try:
     import cchardet as chardet
@@ -60,22 +60,6 @@ dlogger = get_debug_logger()
 REPLACEABLE_HEADERS = {"host", "user-agent"}
 
 
-# Classes
-
-
-class HttpHeaders(CaseInsensitiveDict):
-    """Http headers dict."""
-
-    @staticmethod
-    def _clear_line(line: bytes):
-        """Clear readed line."""
-        decoded = line.rstrip().decode()
-        pair = decoded.split(": ", 1)
-        if len(pair) < 2:
-            return decoded.split(":")
-        return pair
-
-
 #: Headers
 HeadersType = Union[Dict[str, str], List[Tuple[str, str]], HttpHeaders]
 
@@ -91,7 +75,13 @@ class HttpResponse:
       * **raw_headers** (List[Tuple[bytes, bytes]]): headers as raw format
     """
 
-    def __init__(self):
+    def __init__(self, handle_cookies=False):
+        """Creates an HttpResponse object.
+
+        Properties:
+            * **handle_cookies** (bool): To know if handle cookies headers or not,
+              if client instance has the correct flag.
+        """
         self.headers = HttpHeaders()
         self.cookies = None
         self.raw_headers = []
@@ -102,6 +92,7 @@ class HttpResponse:
         self.compressed = b""
         self.chunks_readed = False
         self.request_meta = {}
+        self.handle_cookies = handle_cookies
 
     def _set_response_initial(self, data: bytes):
         """Parse first bytes from http response."""
@@ -120,8 +111,9 @@ class HttpResponse:
             self._set_header(*header_tuple)
 
             # set cookies in response
-            if header_tuple[0].lower() == "set-cookie":
-                self._update_cookies(header_tuple)
+            if self.handle_cookies:
+                if header_tuple[0].lower() == "set-cookie":
+                    self._update_cookies(header_tuple)
 
         if dlogger.level == logging.DEBUG:
 
@@ -407,10 +399,11 @@ async def _do_request(
     verify: bool,
     ssl: Optional[SSLContext],
     timeouts: Optional[Timeouts],
+    client: "HTTPClient",
     http2: bool = False,
-    proxy: Proxy = None,
 ) -> HttpResponse:
     """Something."""
+    proxy = client.proxy
     timeouts = timeouts or connector.timeouts
     url_connect = urlparsed
 
@@ -435,7 +428,7 @@ async def _do_request(
             else:
                 connection.writer.write(body)
 
-        response = HttpResponse()
+        response = HttpResponse(client.handle_cookies)
         response._set_request_meta(urlparsed)
 
         # get response code and version
@@ -487,6 +480,8 @@ class HTTPClient:
         * **handle_cookies**: Flag to indicate if keep response cookies in
             client and send them in next requests.
         * **verify_ssl**: Flag to indicate if verify ssl certificates.
+        * **proxy**: Proxy class instance, to use a proxy server.
+        * **http2**: To use http2 protocol
     """
 
     def __init__(
@@ -495,6 +490,7 @@ class HTTPClient:
         handle_cookies=False,
         verify_ssl=True,
         proxy: Proxy = None,
+        http2: bool = False
     ):
         """Initialize client options."""
         self.connector = connector or TCPConnector()
@@ -502,6 +498,7 @@ class HTTPClient:
         self.cookies_map: Dict[str, cookies.SimpleCookie] = {}
         self.verify_ssl = verify_ssl
         self.proxy = proxy
+        self.http2 = http2
 
     async def __aenter__(self):
         return self
@@ -529,7 +526,6 @@ class HTTPClient:
         ssl: SSLContext = None,
         timeouts: Timeouts = None,
         follow: bool = False,
-        http2: bool = False,
     ) -> HttpResponse:
         """Do post http request."""
         if not data and not json:
@@ -549,7 +545,6 @@ class HTTPClient:
             ssl=ssl,
             follow=follow,
             timeouts=timeouts,
-            http2=http2,
         )
 
     async def get(
@@ -561,7 +556,6 @@ class HTTPClient:
         ssl: SSLContext = None,
         timeouts: Timeouts = None,
         follow: bool = False,
-        http2: bool = False,
     ) -> HttpResponse:
         """Do get http request."""
         return await self.request(
@@ -573,7 +567,6 @@ class HTTPClient:
             ssl=ssl,
             follow=follow,
             timeouts=timeouts,
-            http2=http2,
         )
 
     async def post(
@@ -589,7 +582,6 @@ class HTTPClient:
         ssl: SSLContext = None,
         timeouts: Timeouts = None,
         follow: bool = False,
-        http2: bool = False,
     ) -> HttpResponse:
         """Do post http request."""
         return await self._request_with_body(
@@ -605,7 +597,6 @@ class HTTPClient:
             ssl=ssl,
             follow=follow,
             timeouts=timeouts,
-            http2=http2,
         )
 
     async def put(
@@ -621,7 +612,6 @@ class HTTPClient:
         ssl: SSLContext = None,
         timeouts: Timeouts = None,
         follow: bool = False,
-        http2: bool = False,
     ) -> HttpResponse:
         """Do put http request."""
         return await self._request_with_body(
@@ -637,7 +627,6 @@ class HTTPClient:
             ssl=ssl,
             follow=follow,
             timeouts=timeouts,
-            http2=http2,
         )
 
     async def patch(
@@ -653,7 +642,6 @@ class HTTPClient:
         ssl: SSLContext = None,
         timeouts: Timeouts = None,
         follow: bool = False,
-        http2: bool = False,
     ) -> HttpResponse:
         """Do patch http request."""
         return await self._request_with_body(
@@ -669,7 +657,6 @@ class HTTPClient:
             ssl=ssl,
             follow=follow,
             timeouts=timeouts,
-            http2=http2,
         )
 
     async def delete(
@@ -685,7 +672,6 @@ class HTTPClient:
         ssl: SSLContext = None,
         timeouts: Timeouts = None,
         follow: bool = False,
-        http2: bool = False,
     ) -> HttpResponse:
         """Do delete http request."""
         return await self._request_with_body(
@@ -701,7 +687,6 @@ class HTTPClient:
             ssl=ssl,
             follow=follow,
             timeouts=timeouts,
-            http2=http2,
         )
 
     async def request(
@@ -716,7 +701,6 @@ class HTTPClient:
         ssl: SSLContext = None,
         timeouts: Timeouts = None,
         follow: bool = False,
-        http2: bool = False,
     ) -> HttpResponse:
         """Do http request.
 
@@ -740,6 +724,7 @@ class HTTPClient:
         boundary = None
         headers = HttpHeaders(deepcopy(headers)) if headers else []
         body: ParsedBodyType = b""
+        use_http2 = self.http2
 
         if self.handle_cookies:
             self._add_cookies_to_request(str(urlparsed.hostname), headers)
@@ -777,8 +762,8 @@ class HTTPClient:
                         verify_ssl,
                         ssl,
                         timeouts,
-                        http2,
-                        self.proxy,
+                        self,
+                        use_http2,
                     ),
                     timeout=(timeouts or self.connector.timeouts).request_timeout,
                 )

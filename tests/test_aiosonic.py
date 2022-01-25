@@ -72,7 +72,7 @@ async def test_get_python(http2_serv):
     url = http2_serv
 
     connector = TCPConnector(timeouts=Timeouts(sock_connect=3, sock_read=4))
-    async with aiosonic.HTTPClient(connector) as client:
+    async with aiosonic.HTTPClient(connector, http2=True) as client:
         res = await client.get(
             url,
             verify=False,
@@ -82,7 +82,6 @@ async def test_get_python(http2_serv):
                     " Gecko/20100101 Firefox/70.0"
                 )
             },
-            http2=True,
         )
         assert "Hello World" in await res.text()
 
@@ -95,12 +94,11 @@ async def test_post_http2(http2_serv):
 
     # connector = TCPConnector(timeouts=Timeouts(sock_connect=3, sock_read=4))
     connector = TCPConnector()
-    async with aiosonic.HTTPClient(connector) as client:
+    async with aiosonic.HTTPClient(connector, http2=True) as client:
         res = await client.post(
             url,
             json={"foo": "bar"},
             verify=False,
-            http2=True,
         )
         assert "Hello World" in await res.text()
 

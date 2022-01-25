@@ -119,7 +119,6 @@ async def test_json_parser(mocker):
         ssl=None,
         follow=False,
         timeouts=None,
-        http2=False,
     )
 
 

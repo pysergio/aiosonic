@@ -29,10 +29,10 @@ def no_cythonize(extensions, **_ignore):
     return extensions
 
 
-extensions = [
-    Extension("aiosonic.http_parser", ["aiosonic/http_parser.pyx"]),
-    Extension("aiosonic.connection", ["aiosonic/connection.pyx"]),
-]
+# extensions = [
+#     Extension("aiosonic.http_parser", ["aiosonic/http_parser.pyx"]),
+# ]
+extensions = []
 
 CYTHONIZE = bool(int(os.getenv("CYTHONIZE", 0))) and cythonize is not None
 

@@ -1,3 +1,4 @@
+import re
 from typing import TYPE_CHECKING, AsyncIterator, Dict, Iterator, List
 from urllib.parse import ParseResult, urlencode, urlparse
 
@@ -5,12 +6,27 @@ from onecache import CacheDecorator
 
 from aiosonic.connection import Connection
 from aiosonic.types import BodyType, DataType, ParsedBodyType
+from aiosonic_utils.structures import CaseInsensitiveDict
 
 if TYPE_CHECKING:
     from aiosonic import HeadersType
 
 REPLACEABLE_HEADERS = {"host", "user-agent"}
 _LRU_CACHE_SIZE = 512
+_HEADER_RGX = re.compile(r"^\S+:\s?")
+
+
+# Classes
+class HttpHeaders(CaseInsensitiveDict):
+    """Http headers dict."""
+
+    @staticmethod
+    def _clear_line(line: bytes):
+        """Clear readed line."""
+        decoded = line.rstrip().decode().replace(": ", ":", 1)
+        pair = decoded.split(":", 1)
+        return pair
+
 
 # Functions with cache
 @CacheDecorator(_LRU_CACHE_SIZE)
@@ -27,18 +43,18 @@ async def parse_headers_iterator(connection: Connection):
     while True:
         # StreamReader already buffers data reading so it is efficient.
         res_data = await connection.reader.readline()
-        if b": " not in res_data and b":" not in res_data:
+        if not re.match(_HEADER_RGX, res_data.decode()):
             break
         yield res_data
 
 
-def headers_iterator(headers: 'HeadersType'):
+def headers_iterator(headers: "HeadersType"):
     iterator = headers if isinstance(headers, List) else headers.items()
     for key, data in iterator:
         yield key, data
 
 
-def add_header(headers: 'HeadersType', key: str, value: str, replace=False):
+def add_header(headers: "HeadersType", key: str, value: str, replace=False):
     """Safe add header method."""
     if isinstance(headers, List):
         if replace:
@@ -50,14 +66,14 @@ def add_header(headers: 'HeadersType', key: str, value: str, replace=False):
         headers[key] = value
 
 
-def add_headers(headers: 'HeadersType', headers_to_add: 'HeadersType'):
+def add_headers(headers: "HeadersType", headers_to_add: "HeadersType"):
     """Safe add multiple headers."""
     for key, data in headers_iterator(headers_to_add):
         replace = key.lower() in REPLACEABLE_HEADERS
         add_header(headers, key, data, replace)
 
 
-def setup_body_request(data: DataType, headers: 'HeadersType') -> ParsedBodyType:
+def setup_body_request(data: DataType, headers: "HeadersType") -> ParsedBodyType:
     """Get body to be sent."""
 
     if isinstance(data, (AsyncIterator, Iterator)):
