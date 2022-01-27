@@ -1,6 +1,7 @@
 """Connection stuffs."""
 
 import ssl
+from abc import ABC, abstractmethod
 from asyncio import StreamReader, StreamWriter, open_connection
 from ssl import SSLContext
 from typing import Dict, Optional
@@ -19,7 +20,34 @@ from aiosonic.tcp_helpers import keepalive_flags
 from aiosonic.types import ParsedBodyType
 
 
-class Connection:
+class BaseConnection(ABC):
+    
+    @abstractmethod
+    def connect(self):
+        ...
+
+    @abstractmethod
+    def keep_alive(self):
+        ...
+
+    @abstractmethod
+    def block_until_read_chunks(self):
+        ...
+
+    @abstractmethod
+    def release(self):
+        ...
+
+    @abstractmethod
+    def close(self):
+        ...
+
+    @abstractmethod
+    def http2_request(self):
+        ...
+
+
+class Connection(BaseConnection):
     """Connection class."""
 
     def __init__(self, connector: TCPConnector) -> None:
@@ -54,6 +82,8 @@ class Connection:
         http2: bool,
     ) -> None:
         """Get reader and writer."""
+        from aiosonic import _get_runnin_loop
+
         if not urlparsed.hostname:
             raise HttpParsingError("missing hostname")
 

@@ -216,14 +216,18 @@ class HttpResponse:
         if self.chunked and not self.chunks_readed:
             loop = None
             if self.connection:
-                if sys.version_info >= (3, 7):
-                    loop = asyncio.get_running_loop()
-                else:
-                    loop = asyncio.get_event_loop()
+                loop = _get_runnin_loop()
                 loop.create_task(self.connection.release())
 
     def _set_request_meta(self, urlparsed: ParseResult):
         self.request_meta = {"from_path": urlparsed.path or "/"}
+
+
+def _get_runnin_loop():
+    if sys.version_info >= (3, 7):
+        return asyncio.get_running_loop()
+    else:
+        return asyncio.get_event_loop()
 
 
 def _get_hostname(hostname_arg, port):
@@ -490,7 +494,7 @@ class HTTPClient:
         handle_cookies=False,
         verify_ssl=True,
         proxy: Proxy = None,
-        http2: bool = False
+        http2: bool = False,
     ):
         """Initialize client options."""
         self.connector = connector or TCPConnector()
